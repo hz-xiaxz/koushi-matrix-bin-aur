@@ -1,0 +1,10 @@
+# Build artifacts and downloaded sources
+*.pkg.tar.zst
+*.deb
+*.rpm
+*.AppImage
+src/
+pkg/
+
+# Generated for the AUR by the publish action, not tracked here
+.SRCINFO

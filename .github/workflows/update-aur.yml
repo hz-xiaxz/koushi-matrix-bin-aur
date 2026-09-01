@@ -1,0 +1,92 @@
+name: Update AUR package
+
+on:
+  schedule:
+    # Daily at 06:00 UTC. GitHub disables scheduled workflows after 60 days
+    # without repository activity; a manual run re-arms the timer.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-aur
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Track the newest upstream release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the newest upstream release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # releases/latest excludes drafts and prereleases.
+          release="$(gh api repos/shinaoka/koushi-matrix/releases/latest)"
+          tag="$(jq -r '.tag_name' <<<"$release")"
+          version="${tag#v}"
+
+          if ! jq -e '[.assets[].name] | index("Koushi-linux-x64.deb")' >/dev/null <<<"$release"; then
+            echo "::warning::release $tag has no Koushi-linux-x64.deb asset; skipping"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          current="$(sed -n 's/^pkgver=//p' PKGBUILD)"
+          if [[ "$version" == "$current" ]]; then
+            echo "PKGBUILD is already at $version"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The release ships a sha256sum-format checksum next to the asset,
+          # so the 50 MB package never has to be downloaded here.
+          sha="$(curl -fsSL \
+            "https://github.com/shinaoka/koushi-matrix/releases/download/${tag}/Koushi-linux-x64.deb.sha256" \
+            | awk '{print $1}')"
+          if [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::unexpected checksum payload for $tag"
+            exit 1
+          fi
+
+          sed -i \
+            -e "s/^pkgver=.*/pkgver=${version}/" \
+            -e "s/^pkgrel=.*/pkgrel=1/" \
+            -e "s/^sha256sums=.*/sha256sums=('${sha}')/" \
+            PKGBUILD
+
+          echo "Updating $current -> $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # Regenerates .SRCINFO, builds the package to prove the source and
+      # checksum resolve, then pushes to the AUR.
+      - name: Publish to the AUR
+        if: steps.upstream.outputs.changed == 'true'
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        with:
+          pkgname: koushi-matrix-bin
+          pkgbuild: ./PKGBUILD
+          commit_username: hzxiaxz
+          commit_email: hzxiaxz@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ steps.upstream.outputs.version }}"
+          updpkgsums: false
+          test: true
+          allow_empty_commits: false
+
+      - name: Record the bump in this repository
+        if: steps.upstream.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Update to ${{ steps.upstream.outputs.version }}"
+          git push
