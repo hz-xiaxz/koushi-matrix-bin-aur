@@ -15,9 +15,10 @@ result to the AUR.
 Nothing happens when upstream has not released, when the release carries no
 Linux `.deb`, or when the checksum file is malformed.
 
-Trigger it by hand from the Actions tab (**Update AUR package** →
-**Run workflow**) after an upstream release, or to re-arm the schedule — GitHub
-suspends cron workflows in repositories that see no activity for 60 days.
+The workflow needs no attention: it also commits a monthly stamp file, so
+GitHub never suspends the schedule for the 60-day inactivity rule. A failing
+run emails the repository owner. The Actions tab still offers **Run workflow**
+for an immediate check after an upstream release.
 
 ## Manual release
 
