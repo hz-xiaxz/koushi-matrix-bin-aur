@@ -40,4 +40,8 @@ git commit -am "Update to <version>" && git push
 - `depends` mirrors what the shipped binary actually links against; the
   `libsecret` dependency backs credential storage through the freedesktop
   Secret Service.
+- `hunspell` and the virtual `hunspell-dictionary` back composer spell
+  checking: WebKitGTK checks through Enchant, whose Hunspell provider needs
+  the library and at least one dictionary (pacman asks which one, e.g.
+  `hunspell-en_us`). Neither is linked by the binary, so both are listed here.
 - `options=('!strip' '!debug')` keeps the upstream binary byte-identical.
