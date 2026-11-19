@@ -19,7 +19,11 @@ jobs:
     name: Track the newest upstream release
     runs-on: ubuntu-latest
     steps:
+      # Check out the branch tip, not the run's recorded commit: "Re-run" on an
+      # old run would otherwise start from a stale PKGBUILD and fail to push.
       - uses: actions/checkout@v5
+        with:
+          ref: main
 
       - name: Resolve the newest upstream release
         id: upstream
@@ -89,6 +93,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Update to ${{ steps.upstream.outputs.version }}"
+          git pull --rebase origin main
           git push
 
       # GitHub suspends cron workflows in a repository that receives no commits
@@ -109,4 +114,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .last-checked
           git commit -qm "Keep the scheduled check active"
+          git pull --rebase origin main
           git push
